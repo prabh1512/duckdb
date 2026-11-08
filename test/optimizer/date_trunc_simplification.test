@@ -510,3 +510,26 @@ false	true	false	true
 false	true	false	true
 true	false	true	false
 false	true	false	true
+
+# the upper bound date_trunc(part, c + 1 part) can lie past the largest timestamp: the comparison must not fail
+statement ok
+create table edge_test(d TIMESTAMP);
+
+statement ok
+insert into edge_test values ('294241-03-01 00:00:00'), ('2024-05-05 10:00:00');
+
+query IIIIII
+select count(*) filter (where date_trunc('decade', d) = TIMESTAMP '294240-01-01'),
+       count(*) filter (where date_trunc('century', d) = TIMESTAMP '294200-01-01'),
+       count(*) filter (where date_trunc('decade', d) <> TIMESTAMP '294240-01-01'),
+       count(*) filter (where date_trunc('decade', d) > TIMESTAMP '294240-01-01'),
+       count(*) filter (where date_trunc('decade', d) < TIMESTAMP '294240-01-01'),
+       count(*) filter (where date_trunc('decade', d) >= TIMESTAMP '294240-01-01')
+from edge_test;
+----
+1	1	1	0	1	1
+
+query I
+select d from edge_test where date_trunc('decade', d) = TIMESTAMP '294240-01-01';
+----
+294241-03-01 00:00:00

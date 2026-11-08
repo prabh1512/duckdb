@@ -384,7 +384,8 @@ unique_ptr<Expression> DateTruncSimplificationRule::CreateTrunc(const BoundConst
 	if (trunc->IsFoldable()) {
 		Value result;
 		if (!ExpressionExecutor::TryEvaluateScalar(rewriter.context, *trunc, result)) {
-			return trunc;
+			// the bound is out of range: the rewrite would raise an error the original comparison does not
+			return nullptr;
 		}
 
 		return make_uniq<BoundConstantExpression>(result);
@@ -435,7 +436,8 @@ unique_ptr<Expression> DateTruncSimplificationRule::CreateTruncAdd(const BoundCo
 	if (trunc->IsFoldable()) {
 		Value result;
 		if (!ExpressionExecutor::TryEvaluateScalar(rewriter.context, *trunc, result)) {
-			return trunc;
+			// the bound is out of range: the rewrite would raise an error the original comparison does not
+			return nullptr;
 		}
 
 		return make_uniq<BoundConstantExpression>(result);
@@ -453,6 +455,9 @@ bool DateTruncSimplificationRule::DateIsTruncated(const BoundConstantExpression 
 
 	// Create the node date_trunc(date_part, rhs).
 	auto trunc = CreateTrunc(date_part, rhs, rhs.GetReturnType());
+	if (!trunc) {
+		return false;
+	}
 
 	Value trunc_result, result;
 	if (!ExpressionExecutor::TryEvaluateScalar(rewriter.context, *trunc, trunc_result)) {

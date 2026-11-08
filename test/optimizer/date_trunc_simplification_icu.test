@@ -107,3 +107,21 @@ false	true	true	true	false	false
 false	true	true	true	false	false
 true	false	false	true	false	true
 NULL	NULL	NULL	NULL	NULL	NULL
+
+# the upper bound date_trunc(part, c + 1 part) can lie past the largest timestamp: the comparison must not fail
+statement ok
+set TimeZone='UTC';
+
+statement ok
+create table tz_edge(x TIMESTAMPTZ);
+
+statement ok
+insert into tz_edge values ('294247-01-01 00:00:00+00'), ('2024-05-05 10:00:00+00');
+
+query III
+select count(*) filter (where date_trunc('year', x) = TIMESTAMPTZ '294247-01-01 00:00:00+00'),
+       count(*) filter (where date_trunc('quarter', x) = TIMESTAMPTZ '294247-01-01 00:00:00+00'),
+       count(*) filter (where date_trunc('month', x) = TIMESTAMPTZ '294247-01-01 00:00:00+00')
+from tz_edge;
+----
+1	1	1
