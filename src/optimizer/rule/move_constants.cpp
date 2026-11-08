@@ -2,6 +2,7 @@
 
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/operator/cast_operators.hpp"
+#include "duckdb/common/types/uhugeint.hpp"
 #include "duckdb/common/value_operations/value_operations.hpp"
 #include "duckdb/function/function_binder.hpp"
 #include "duckdb/planner/expression/bound_conjunction_expression.hpp"
@@ -51,6 +52,15 @@ static bool TryOutOfRangeComparisonResult(ExpressionType comparison_type, bool &
 	}
 }
 
+// Value of an integral constant as hugeint_t; false for UHUGEINT values above the HUGEINT maximum
+static bool TryGetIntegralValue(const Value &value, hugeint_t &result) {
+	if (value.type().InternalType() == PhysicalType::UINT128) {
+		return Uhugeint::TryCast(UhugeIntValue::Get(value), result);
+	}
+	result = IntegralValue::Get(value);
+	return true;
+}
+
 unique_ptr<Expression> MoveConstantsRule::Apply(LogicalOperator &op, vector<reference<Expression>> &bindings,
                                                 bool &changes_made, bool is_root) {
 	auto &comparison = bindings[0].get().Cast<BoundFunctionExpression>();
@@ -67,8 +77,11 @@ unique_ptr<Expression> MoveConstantsRule::Apply(LogicalOperator &op, vector<refe
 		return make_uniq<BoundConstantExpression>(Value(comparison.GetReturnType()));
 	}
 	auto &constant_type = outer_constant.GetReturnType();
-	hugeint_t outer_value = IntegralValue::Get(outer_constant.GetValue());
-	hugeint_t inner_value = IntegralValue::Get(inner_constant.GetValue());
+	hugeint_t outer_value, inner_value;
+	if (!TryGetIntegralValue(outer_constant.GetValue(), outer_value) ||
+	    !TryGetIntegralValue(inner_constant.GetValue(), inner_value)) {
+		return nullptr;
+	}
 
 	idx_t arithmetic_child_index = arithmetic.GetChildrenMutable()[0].get() == &inner_constant ? 1 : 0;
 	auto &op_type = arithmetic.Function().GetName();

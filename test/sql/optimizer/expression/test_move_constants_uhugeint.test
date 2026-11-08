@@ -1,0 +1,48 @@
+# name: test/sql/optimizer/expression/test_move_constants_uhugeint.test
+# description: Moving a constant across a comparison with UHUGEINT constants above the HUGEINT maximum
+# group: [expression]
+
+statement ok
+CREATE TABLE uh_vals(x UHUGEINT);
+
+statement ok
+INSERT INTO uh_vals VALUES (170141183460469231731687303715884105728), (5), (340282366920938463463374607431768211454), (NULL);
+
+query I
+SELECT x FROM uh_vals WHERE x + 1 = 170141183460469231731687303715884105729;
+----
+170141183460469231731687303715884105728
+
+query I
+SELECT count(*) FROM uh_vals WHERE x + 1 = 340282366920938463463374607431768211455;
+----
+1
+
+query I
+SELECT count(*) FROM uh_vals WHERE 1 + x = 340282366920938463463374607431768211455;
+----
+1
+
+query I
+SELECT count(*) FROM uh_vals WHERE x - 1 = 170141183460469231731687303715884105727;
+----
+1
+
+query I
+SELECT count(*) FROM uh_vals WHERE x + 1 <> 170141183460469231731687303715884105729;
+----
+2
+
+query II
+SELECT x, x + 1 = 170141183460469231731687303715884105729 FROM uh_vals ORDER BY x;
+----
+5	false
+170141183460469231731687303715884105728	true
+340282366920938463463374607431768211454	false
+NULL	NULL
+
+# constants below the HUGEINT maximum are still rewritten correctly
+query I
+SELECT count(*) FROM uh_vals WHERE x + 1 = 6;
+----
+1
